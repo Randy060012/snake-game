@@ -1,0 +1,473 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap');
+
+* {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: 'Orbitron', sans-serif;
+}
+
+html {
+    height: 100%;
+    overflow-x: hidden;
+}
+
+body {
+    background: #0f172a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.wrapper {
+    width: min(100%, 480px);
+    height: auto;
+    background: #0f172a;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.55), 0 0 18px rgba(56, 189, 248, 0.15);
+}
+
+.top-bar {
+    min-height: 44px;
+    background: #0f172a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 0 clamp(10px, 3vw, 18px);
+    color: #94a3b8;
+    font-size: clamp(11px, 3vw, 13px);
+}
+
+.top-bar span span {
+    color: #f59e0b;
+}
+
+/* .play-board {
+    height: 360px;
+    width: 100%;
+    background: #0f172a;
+    display: grid;
+    grid-template: repeat(30, 1fr) / repeat(30, 1fr);
+    transition: box-shadow 0.2s ease, border 0.2s ease;
+} */
+
+/* Grille de jeu bien délimitée avec effet de quadrillage */
+.play-board {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  background-color: #161b22;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: calc(100% / 30) calc(100% / 30); /* Aligné sur la grille 30x30 */
+  border: 2px solid #38bdf8;
+  border-radius: 10px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.3);
+  display: grid;
+  grid-template-rows: repeat(30, 1fr);
+  grid-template-columns: repeat(30, 1fr);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Container global de jeu */
+.game-container {
+  background: #0d1117;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(56, 189, 248, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+/* En-tête du score et des infos */
+.wrapper .scores, .stats-bar {
+  width: 100%;
+  max-width: 450px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  padding: 12px 20px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #f0f6fc;
+  font-weight: 600;
+}
+
+/* Controles & Boutons du bas */
+.controls-container {
+  width: 100%;
+  max-width: 450px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Bouton Dash */
+#abilityBtn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: bold;
+  padding: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  transition: transform 0.1s ease, background 0.2s ease;
+}
+
+#abilityBtn:active {
+  transform: scale(0.98);
+}
+
+/* Éléments de Jeu */
+.food-normal {
+    background: #ef4444;
+    border-radius: 50%;
+}
+
+.food-golden {
+    background: #f59e0b;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+/* Skins de base */
+.snake {
+    border-radius: 2px;
+    transition: transform 0.05s linear;
+}
+
+.snake-skin-classic {
+    background: #f59e0b;
+}
+
+.snake-skin-neon {
+    background: #06b6d4;
+    box-shadow: 0 0 5px #06b6d4;
+}
+
+.snake-skin-fire {
+    background: #dc2626;
+    box-shadow: 0 0 5px #f97316;
+}
+
+/* Animation et Effet Glow du Dash sur le serpent */
+@keyframes dashPulse {
+    0% {
+        box-shadow: 0 0 8px #60a5fa, 0 0 15px #3b82f6;
+        filter: brightness(1.3);
+    }
+
+    50% {
+        box-shadow: 0 0 16px #93c5fd, 0 0 25px #2563eb;
+        filter: brightness(1.6);
+    }
+
+    100% {
+        box-shadow: 0 0 8px #60a5fa, 0 0 15px #3b82f6;
+        filter: brightness(1.3);
+    }
+}
+
+.snake.dash-effect {
+    background: #60a5fa !important;
+    /* Couleur superchargée pendant le dash */
+    animation: dashPulse 0.3s infinite alternate;
+    z-index: 5;
+}
+
+/* Contrôles */
+.btns {
+    background: #1e293b;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+}
+
+.btns button {
+    all: unset;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    border-top: 1px solid #334155;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    font-size: clamp(16px, 4.5vw, 20px);
+}
+
+.btns button:hover {
+    background: rgba(56, 189, 248, 0.08);
+    color: #e2e8f0;
+}
+
+.btns button:active {
+    background: rgba(56, 189, 248, 0.18);
+}
+
+/* Bouton Dash & Cooldown UI */
+.btns .ability-btn {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    background: #2563eb;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    font-weight: bold;
+    user-select: none;
+    font-size: clamp(12px, 3.2vw, 14px);
+}
+
+.btns .ability-btn.active {
+    background: #1d4ed8;
+    box-shadow: inset 0 0 10px #60a5fa;
+}
+
+.btns .ability-btn.cooldown {
+    background: #475569;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.ability-btn .cooldown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(15, 23, 42, 0.6);
+    pointer-events: none;
+    transition: width 0.1s linear;
+}
+
+.ability-btn .btn-text {
+    position: relative;
+    z-index: 2;
+}
+
+/* Modales / Overlays */
+.modal-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: clamp(10px, 3vw, 20px);
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+    z-index: 10;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-card {
+    background: #1e293b;
+    padding: clamp(16px, 4vw, 24px);
+    border-radius: 10px;
+    text-align: center;
+    color: white;
+    width: min(100%, 380px);
+    max-height: 100%;
+    overflow-y: auto;
+    font-size: clamp(12px, 3.2vw, 14px);
+}
+
+.modal-card.hidden {
+    display: none;
+}
+
+.modal-card h2 {
+    font-size: clamp(18px, 5vw, 24px);
+}
+
+.countdown-num {
+    font-size: clamp(48px, 16vw, 72px);
+    color: #3b82f6;
+    margin: 10px 0;
+}
+
+.action-btn,
+.skin-btn {
+    margin-top: 10px;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    font-family: inherit;
+    font-size: clamp(12px, 3.2vw, 14px);
+    touch-action: manipulation;
+}
+
+.action-btn:active,
+.skin-btn:active {
+    transform: scale(0.98);
+}
+
+.skin-btn {
+    background: #334155;
+    font-size: clamp(11px, 3vw, 12px);
+}
+
+/* Nouvelles Boules Spéciales */
+.food-shield { background: #a855f7; border-radius: 50%; box-shadow: 0 0 10px #a855f7; }
+.food-dash-item { background: #3b82f6; border-radius: 50%; box-shadow: 0 0 10px #3b82f6; }
+.food-gold-rain { background: #eab308; border-radius: 50%; box-shadow: 0 0 12px #fef08a; }
+.food-giga { background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e; }
+.food-magnet { background: #ec4899; border-radius: 50%; box-shadow: 0 0 10px #ec4899; }
+
+/* Effets Visuels des Capacités sur le Serpent */
+.snake.shield-effect {
+    box-shadow: 0 0 12px #a855f7, inset 0 0 6px #ffffff !important;
+    border: 1px solid #d8b4fe;
+}
+
+.snake.giga-effect {
+    transform: scale(1.4) !important;
+    z-index: 6;
+}
+
+.snake.magnet-effect {
+    box-shadow: 0 0 10px #ec4899 !important;
+}
+
+/* Remplacement du style Poison par l'Obstacle */
+.obstacle-block {
+    background: #475569;
+    border: 1px solid #94a3b8;
+    border-radius: 3px;
+    box-shadow: inset 0 0 5px #0f172a;
+}
+
+/* Boule Orange Spéciale : Pilotage Automatique */
+.food-autopilot {
+    background: #f97316;
+    border-radius: 50%;
+    box-shadow: 0 0 12px #f97316;
+    animation: autoPilotPulse 0.6s infinite alternate;
+}
+
+@keyframes autoPilotPulse {
+    from { transform: scale(0.85); box-shadow: 0 0 6px #f97316; }
+    to { transform: scale(1.15); box-shadow: 0 0 16px #fb923c; }
+}
+
+/* Effet du serpent quand le Pilote Automatique est actif */
+.snake.autopilot-effect {
+    box-shadow: 0 0 10px #f97316, inset 0 0 4px #ffedd5 !important;
+    border: 1px solid #fdba74;
+}
+
+/* Modal Info UI */
+.mode-select {
+    margin: 12px 0;
+    font-size: clamp(11px, 3vw, 13px);
+}
+
+.mode-select select {
+    background: #0f172a;
+    color: #f59e0b;
+    border: 1px solid #334155;
+    padding: 8px;
+    border-radius: 4px;
+    margin-left: 5px;
+    max-width: 100%;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.info-content {
+    text-align: left;
+    font-size: clamp(11px, 3vw, 12px);
+    max-height: min(45vh, 260px);
+    overflow-y: auto;
+    margin: 10px 0;
+    color: #cbd5e1;
+}
+
+.info-list {
+    margin-left: 15px;
+    margin-bottom: 10px;
+}
+
+.info-toggle-btn {
+    background: #475569 !important;
+}
+
+#timerContainer {
+    color: #ef4444;
+    font-weight: bold;
+}
+/* Adaptation aux ecrans larges mais peu hauts (mobile en paysage, petits laptops) */
+@media (orientation: landscape) and (max-height: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    .wrapper {
+        width: min(100%, 780px);
+        height: calc(100dvh - 20px);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(150px, 28vw, 190px);
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas:
+            "board top"
+            "board controls";
+    }
+
+    .top-bar {
+        grid-area: top;
+    }
+
+    .play-board {
+        grid-area: board;
+        width: auto;
+        height: 100%;
+        max-width: 100%;
+        align-self: center;
+        justify-self: center;
+    }
+
+    .btns {
+        grid-area: controls;
+        align-content: start;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

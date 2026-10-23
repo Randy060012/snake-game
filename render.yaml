@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: snake-arcade
+    runtime: static
+    buildCommand: echo "Static site - no build step required"
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache

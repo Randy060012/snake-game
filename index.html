@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="Snake Arcade : jeu de serpent responsive avec modes classique, chrono et obstacles.">
+    <title>Snake Arcade Special Edition</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Barre de Score & Monnaie -->
+        <div class="top-bar">
+            <span>Score: <span class="score-val">0</span></span>
+            <span id="timerContainer" class="hidden">⏳ <span id="timerVal">60</span>s</span>
+            <span><i class="fa-solid fa-coins"></i> <span class="coins-val">0</span></span>
+        </div>
+
+        <!-- Zone de Jeu Grille -->
+        <div class="play-board"></div>
+
+        <!-- Contrôles Tactiles/Boutons -->
+        <div class="btns">
+            <button type="button" onclick="changeDirection('Left')" class="Arrowleft" aria-label="Aller à gauche"><i class="fa-solid fa-arrow-left"></i></button>
+            <button type="button" onclick="changeDirection('Up')" class="ArrowUp" aria-label="Aller en haut"><i class="fa-solid fa-arrow-up"></i></button>
+            <button type="button" onclick="changeDirection('Down')" class="ArrowDown" aria-label="Aller en bas"><i class="fa-solid fa-arrow-down"></i></button>
+            <button type="button" onclick="changeDirection('Right')" class="ArrowRight" aria-label="Aller à droite"><i class="fa-solid fa-arrow-right"></i></button>
+            <button type="button" onclick="activateAbility()" class="ability-btn" id="abilityBtn" aria-label="Activer le Dash">
+                <div class="cooldown-overlay" id="cooldownOverlay"></div>
+                <span class="btn-text" id="abilityText"><i class="fa-solid fa-bolt"></i> Dash</span>
+            </button>
+        </div>
+
+        <!-- Modales / Overlays -->
+        <div class="modal-overlay" id="modalOverlay">
+            <!-- Modal Menu de Démarrage -->
+            <div class="modal-card" id="startBox">
+                <h2>Snake Arcade</h2>
+                <div class="mode-select">
+                    <label>Mode de Jeu :</label>
+                    <select id="gameModeSelect">
+                        <option value="classic">Classique</option>
+                        <option value="chrono">Chrono (60s)</option>
+                        <option value="survival">Mode Obstacles</option>
+                    </select>
+                </div>
+                <button class="action-btn start-btn" id="startBtn"><i class="fa-solid fa-play"></i> Commencer</button>
+                <button class="action-btn shop-toggle-btn"><i class="fa-solid fa-cart-shopping"></i> Boutique</button>
+                <button class="action-btn info-toggle-btn" id="infoBtn"><i class="fa-solid fa-circle-info"></i> RÈGLES & INFOS</button>
+            </div>
+
+            <!-- Modal Décompte -->
+            <div class="modal-card hidden" id="countdownBox">
+                <h1 id="countdownText" class="countdown-num">5</h1>
+                <p>Préparez-vous !</p>
+            </div>
+
+            <!-- Modal Game Over -->
+            <div class="modal-card hidden" id="gameOverBox">
+                <h2>Game Over</h2>
+                <p>Score: <span class="game-over-score">0</span></p>
+                <p>Pièces gagnées: +<span class="earned-coins">0</span> <i class="fa-solid fa-coins"></i></p>
+                <button class="action-btn restart-btn"><i class="fa-solid fa-rotate-right"></i> Rejouer</button>
+                <button class="action-btn shop-toggle-btn"><i class="fa-solid fa-cart-shopping"></i> Boutique</button>
+            </div>
+
+            <!-- Modal Boutique -->
+            <div class="modal-card hidden" id="shopBox">
+                <h2>Boutique Skins</h2>
+                <div class="shop-items">
+                    <button class="skin-btn" onclick="buyOrEquipSkin('classic', 0)">Classique (Jaune)</button>
+                    <button class="skin-btn" onclick="buyOrEquipSkin('neon', 50)">Néon Cyan (50 pièces)</button>
+                    <button class="skin-btn" onclick="buyOrEquipSkin('fire', 100)">Feu Rouge (100 pièces)</button>
+                </div>
+                <button class="action-btn close-shop-btn">Retour</button>
+            </div>
+
+            <!-- Modal Infos & Règles -->
+            <div class="modal-card hidden" id="infoBox">
+                <h2>Guide du Jeu</h2>
+                <div class="info-content">
+                    <p><strong>🎯 Modes :</strong></p>
+                    <ul class="info-list">
+                        <li><b>Classique :</b> Jouez sans limite de temps.</li>
+                        <li><b>Chrono :</b> 60s pour scorer max. Les boules spéciales ajoutent +3s.</li>
+                        <li><b>Obstacles :</b> Évitez les obstacles (🧱). Max 3 collisions autorisées !</li>
+                    </ul>
+                    <p><strong>✨ Boules Spéciales :</strong></p>
+                    <ul class="info-list">
+                        <li>🟧 <b>Orange :</b> Pilotage Automatique pendant 60s !</li>
+                        <li>🛡️ <b>Violette :</b> Bouclier anti-collision.</li>
+                        <li>⚡ <b>Bleue :</b> Dash gratuit.</li>
+                        <li>💰 <b>Jaune :</b> Pluie d'or (3 boules).</li>
+                        <li>🟢 <b>Verte :</b> Taille Giga.</li>
+                        <li>🧲 <b>Rose :</b> Aimant à boules.</li>
+                    </ul>
+                </div>
+                <button class="action-btn close-info-btn">Fermer</button>
+            </div>
+
+            <!-- Modal Pause -->
+            <div class="modal-card hidden" id="pauseBox">
+                <h2>PAUSE</h2>
+                <p>Appuyez sur ESPACE pour reprendre</p>
+                <button class="action-btn resume-btn" onclick="togglePause()"><i class="fa-solid fa-play"></i> Reprendre</button>
+            </div>
+        </div>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
