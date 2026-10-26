@@ -14,17 +14,28 @@
         <!-- Barre de Score & Monnaie -->
         <div class="top-bar">
             <span>Score: <span class="score-val">0</span></span>
+            <span>Record: <span class="high-score-val">0</span></span>
             <span id="timerContainer" class="hidden">⏳ <span id="timerVal">60</span>s</span>
             <span><i class="fa-solid fa-coins"></i> <span class="coins-val">0</span></span>
         </div>
+
+        <!-- Vitesse courante : la rampe devient un repère au lieu d'une surprise -->
+        <div class="speed-bar">
+            <span class="speed-label">Vitesse</span>
+            <span class="speed-track"><span class="speed-fill" id="speedFill"></span></span>
+            <span class="speed-value" id="speedValue">0 cases/s</span>
+        </div>
+
+        <!-- Effets actifs (boules) : barre qui se vide ou compteur -->
+        <div class="effects-bar hidden" id="effectsBar" aria-live="polite"></div>
 
         <!-- Zone de Jeu Grille -->
         <div class="play-board"></div>
 
         <!-- Contrôles Tactiles/Boutons -->
         <div class="btns">
-            <button type="button" onclick="changeDirection('Left')" class="Arrowleft" aria-label="Aller à gauche"><i class="fa-solid fa-arrow-left"></i></button>
             <button type="button" onclick="changeDirection('Up')" class="ArrowUp" aria-label="Aller en haut"><i class="fa-solid fa-arrow-up"></i></button>
+            <button type="button" onclick="changeDirection('Left')" class="Arrowleft" aria-label="Aller à gauche"><i class="fa-solid fa-arrow-left"></i></button>
             <button type="button" onclick="changeDirection('Down')" class="ArrowDown" aria-label="Aller en bas"><i class="fa-solid fa-arrow-down"></i></button>
             <button type="button" onclick="changeDirection('Right')" class="ArrowRight" aria-label="Aller à droite"><i class="fa-solid fa-arrow-right"></i></button>
             <button type="button" onclick="activateAbility()" class="ability-btn" id="abilityBtn" aria-label="Activer le Dash">
@@ -60,20 +71,28 @@
             <!-- Modal Game Over -->
             <div class="modal-card hidden" id="gameOverBox">
                 <h2>Game Over</h2>
-                <p>Score: <span class="game-over-score">0</span></p>
+                <p class="new-record hidden" id="newRecord">🏆 Nouveau record !</p>
+                <p>Score: <span class="game-over-score">0</span> <span class="record-note">· Record: <span class="record-val">0</span></span></p>
                 <p>Pièces gagnées: +<span class="earned-coins">0</span> <i class="fa-solid fa-coins"></i></p>
+                <div class="coin-breakdown">
+                    <p><span>Score</span><span><span class="bd-score">0</span> × 10 = <span class="bd-flat">0</span></span></p>
+                    <p><span>Densité</span><span><span class="bd-density">0</span> pts/s × 20 = <span class="bd-density-coins">0</span></span></p>
+                </div>
                 <button class="action-btn restart-btn"><i class="fa-solid fa-rotate-right"></i> Rejouer</button>
                 <button class="action-btn shop-toggle-btn"><i class="fa-solid fa-cart-shopping"></i> Boutique</button>
             </div>
 
             <!-- Modal Boutique -->
             <div class="modal-card hidden" id="shopBox">
-                <h2>Boutique Skins</h2>
+                <h2>Boutique</h2>
+                <h3 class="shop-subtitle">Skins</h3>
                 <div class="shop-items">
                     <button class="skin-btn" onclick="buyOrEquipSkin('classic', 0)">Classique (Jaune)</button>
                     <button class="skin-btn" onclick="buyOrEquipSkin('neon', 50)">Néon Cyan (50 pièces)</button>
                     <button class="skin-btn" onclick="buyOrEquipSkin('fire', 100)">Feu Rouge (100 pièces)</button>
                 </div>
+                <h3 class="shop-subtitle">Améliorations</h3>
+                <div class="shop-items" id="upgradeItems"></div>
                 <button class="action-btn close-shop-btn">Retour</button>
             </div>
 
@@ -85,18 +104,19 @@
                     <ul class="info-list">
                         <li><b>Classique :</b> Jouez sans limite de temps.</li>
                         <li><b>Chrono :</b> 60s pour scorer max. Les boules spéciales ajoutent +3s.</li>
-                        <li><b>Obstacles :</b> Évitez les obstacles (🧱). Max 3 collisions autorisées !</li>
+                        <li><b>Obstacles :</b> Les murs s'accumulent (🧱) et ne se traversent pas. Max 3 chocs !</li>
                     </ul>
                     <p><strong>✨ Boules Spéciales :</strong></p>
                     <ul class="info-list">
-                        <li>🟧 <b>Orange :</b> Pilotage Automatique pendant 60s !</li>
-                        <li>🛡️ <b>Violette :</b> Bouclier anti-collision.</li>
-                        <li>⚡ <b>Bleue :</b> Dash gratuit.</li>
+                        <li>🟧 <b>Orange :</b> Invincibilité 3s (traverse les murs).</li>
+                        <li>🛡️ <b>Violette :</b> Bouclier, encaisse le premier choc.</li>
+                        <li>⚡ <b>Bleue :</b> recharge complètement le Dash (4 cases).</li>
                         <li>💰 <b>Jaune :</b> Pluie d'or (3 boules).</li>
-                        <li>🟢 <b>Verte :</b> Taille Giga.</li>
-                        <li>🧲 <b>Rose :</b> Aimant à boules.</li>
+                        <li>🟢 <b>Verte :</b> Aura Giga, +2 points par boule pendant 8s.</li>
+                        <li>🧲 <b>Rose :</b> Aimant à boules (×3).</li>
                     </ul>
                 </div>
+                <p class="info-note"><b>⚡ Dash :</b> charges limitées, recharge progressive, portée courte — améliorables en boutique. Les effets actifs s'affichent en haut du plateau.</p>
                 <button class="action-btn close-info-btn">Fermer</button>
             </div>
 
@@ -108,6 +128,7 @@
             </div>
         </div>
     </div>
+    <script src="core.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

@@ -52,6 +52,157 @@ body {
     color: #f59e0b;
 }
 
+/* Vitesse courante : jauge alimentée par le noyau (speedRatio / casesPerSecond) */
+.speed-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px clamp(10px, 3vw, 18px) 0;
+    color: #64748b;
+    font-size: clamp(10px, 2.6vw, 11px);
+}
+
+.speed-label {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.speed-track {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: #1e293b;
+    overflow: hidden;
+}
+
+.speed-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+    transition: width 0.2s linear;
+}
+
+.speed-value {
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+    min-width: 62px;
+    text-align: right;
+}
+
+/* Fin de partie : record et provenance des pièces */
+.new-record {
+    color: #f59e0b;
+    font-weight: bold;
+}
+
+.new-record.hidden {
+    display: none;
+}
+
+.record-note {
+    color: #94a3b8;
+    font-size: 0.9em;
+}
+
+.coin-breakdown {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: clamp(10px, 2.8vw, 11px);
+    color: #94a3b8;
+}
+
+.coin-breakdown p {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.coin-breakdown span span {
+    color: #e2e8f0;
+}
+
+/* Bandeau des effets actifs (boules en cours) */
+.effects-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 6px clamp(10px, 3vw, 18px) 0;
+}
+
+.effects-bar.hidden {
+    display: none;
+}
+
+.effect-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    font-size: clamp(10px, 2.6vw, 11px);
+    white-space: nowrap;
+}
+
+.effect-value {
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.effect-track {
+    display: block;
+    width: clamp(34px, 13vw, 60px);
+    height: 4px;
+    border-radius: 999px;
+    background: #0f172a;
+    overflow: hidden;
+}
+
+.effect-fill {
+    display: block;
+    height: 100%;
+    background: #38bdf8;
+    transition: width 0.1s linear;
+}
+
+.effect-giga .effect-label { color: #22c55e; }
+.effect-giga .effect-fill { background: #22c55e; }
+.effect-invuln .effect-label { color: #f97316; }
+.effect-invuln .effect-fill { background: #f97316; }
+.effect-shield .effect-label { color: #a855f7; }
+.effect-magnet .effect-label { color: #ec4899; }
+.effect-magnet .effect-fill { background: #ec4899; }
+.effect-wall .effect-label { color: #94a3b8; }
+.effect-wall .effect-fill { background: #64748b; }
+
+/* Boutique : améliorations */
+.shop-subtitle {
+    margin-top: 14px;
+    font-size: clamp(12px, 3.4vw, 14px);
+    color: #e2e8f0;
+}
+
+.upgrade-btn {
+    text-align: left;
+    line-height: 1.35;
+}
+
+.upgrade-btn[disabled] {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.upgrade-cost {
+    color: #94a3b8;
+    font-size: 0.85em;
+}
+
 /* .play-board {
     height: 360px;
     width: 100%;
@@ -195,12 +346,36 @@ body {
     z-index: 5;
 }
 
-/* Contrôles */
+/* Contrôles — disposition en T inversé, comme les flèches d'un clavier :
+   [   ↑   ]
+   [ ← ↓ → ]
+   [  Dash ] */
 .btns {
     background: #1e293b;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto auto auto;
     gap: 1px;
+}
+
+.btns .ArrowUp {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.btns .Arrowleft {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.btns .ArrowDown {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.btns .ArrowRight {
+    grid-column: 3;
+    grid-row: 2;
 }
 
 .btns button {
@@ -229,6 +404,7 @@ body {
 /* Bouton Dash & Cooldown UI */
 .btns .ability-btn {
     grid-column: 1 / -1;
+    grid-row: 3;
     min-height: 48px;
     background: #2563eb;
     color: white;
@@ -416,6 +592,14 @@ body {
 .info-list {
     margin-left: 15px;
     margin-bottom: 10px;
+}
+
+.info-note {
+    text-align: left;
+    font-size: clamp(10px, 2.8vw, 11px);
+    color: #94a3b8;
+    border-top: 1px solid #334155;
+    padding-top: 8px;
 }
 
 .info-toggle-btn {

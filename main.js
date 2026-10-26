@@ -32,6 +32,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const abilityBtn = document.getElementById("abilityBtn");
   const abilityText = document.getElementById("abilityText");
   const cooldownOverlay = document.getElementById("cooldownOverlay");
+  const effectsBar = document.getElementById("effectsBar");
+  const upgradeItems = document.getElementById("upgradeItems");
+  const speedFill = document.getElementById("speedFill");
+  const speedValue = document.getElementById("speedValue");
+  const recordVal = document.querySelector(".record-val");
+  const newRecordTag = document.getElementById("newRecord");
+  const bdScore = document.querySelector(".bd-score");
+  const bdFlat = document.querySelector(".bd-flat");
+  const bdDensity = document.querySelector(".bd-density");
+  const bdDensityCoins = document.querySelector(".bd-density-coins");
+
+  // Noyau de règles (core.js) : source unique des constantes et des règles,
+  // verrouillée par la suite de tests (node --test).
+  const C = window.SnakeCore;
 
   // ==========================================
   // 🔊 MOTEUR AUDIO WEB AUDIO API
@@ -105,44 +119,86 @@ document.addEventListener("DOMContentLoaded", () => {
   let gameEnd = false;
   let isPaused = false;
   let isDashing = false;
-  let abilityCooldown = false;
   let currentGameMode = "classic";
+  let turnQueue = []; // virages en attente, un seul consommé par tick
 
-  const initialSpeed = 150;
+  const initialSpeed = C.INITIAL_SPEED;
+  const minSpeed = C.MIN_SPEED;
+  const speedStep = C.SPEED_STEP;
   let normalSpeed = initialSpeed;
-  let dashSpeed = 50;
-  const minSpeed = 60;
+  let dashSpeed = C.DASH_MAX_SPEED;
+
+  // Dash — valeurs effectives, éventuellement améliorées en boutique (applyUpgrades)
+  let dashCells = C.DASH_CELLS;
+  let maxDashCharges = C.MAX_DASH_CHARGES;
+  let dashRegenSeconds = C.DASH_REGEN_SECONDS;
+  let dashCellsLeft = 0;
+  let dashCharges = 1;
+  let regenMs = 0; // progression vers la prochaine charge
 
   // Mode Chrono & Obstacles
   let chronoTime = 60;
   let chronoInterval = null;
+  const MAX_OBSTACLE_COLLISIONS = 3;
   let obstacleCollisions = 0;
-  let obstacleFood = { x: 0, y: 0, active: false };
+  let obstacles = []; // murs persistants du mode Obstacles
 
   // Capacités & Effets actifs
+  const GIGA_DURATION_MS = C.GIGA_DURATION_MS;
+  const INVULNERABLE_DURATION_MS = C.INVULNERABLE_DURATION_MS;
+  const MAGNET_CHARGES = C.MAGNET_CHARGES;
   let hasShield = false;
   let isInvulnerable = false;
-  let invulnerabilityTimer = null;
+  let invulnMsLeft = 0;
   let isGiga = false;
+  let gigaMsLeft = 0;
   let magnetCharges = 0;
   let extraGoldFoods = [];
 
   let mainFood = { x: 0, y: 0, type: 'normal' };
   let snakeX = 5, snakeY = 10;
   let moveX = 1, moveY = 0;
-  let lastMoveX = 1, lastMoveY = 0;
   let snakeBody = [];
   let intervalId = null;
+  let tickMs = initialSpeed; // durée du tick en cours, sert à décompter les effets en temps réel
   let score = 0;
   let startTime;
 
-  // Données Joueur
-  let playerData = JSON.parse(localStorage.getItem("snake_player_data")) || {
-    highScore: 0,
-    coins: 0,
-    unlockedSkins: ["classic"],
-    equippedSkin: "classic",
-  };
+  // Données Joueur — sauvegarde versionnée, migrée depuis l'ancien format
+  const STORAGE_KEY = "snake_player_data";
+  const STORAGE_VERSION = 2;
+
+  const UPGRADES = [
+    { key: "regen", label: "Recharge du Dash : 4s → 2,5s", cost: 400 },
+    { key: "range", label: "Portée du Dash : 4 → 6 cases", cost: 500 },
+    { key: "charges", label: "Charges de Dash : 3 → 4", cost: 350 },
+  ];
+
+  function loadPlayerData() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== "object") raw = {};
+    return {
+      v: STORAGE_VERSION,
+      highScore: raw.highScore || 0,
+      coins: raw.coins || 0,
+      unlockedSkins: Array.isArray(raw.unlockedSkins) && raw.unlockedSkins.length ? raw.unlockedSkins : ["classic"],
+      equippedSkin: raw.equippedSkin || "classic",
+      upgrades: (raw.upgrades && typeof raw.upgrades === "object") ? raw.upgrades : {},
+    };
+  }
+
+  let playerData = loadPlayerData();
+
+  // Les améliorations changent le jeu, pas la palette : elles s'appliquent ici,
+  // en un seul endroit, pour que le reste du code lise une valeur déjà résolue.
+  function applyUpgrades() {
+    dashCells = playerData.upgrades.range ? 6 : C.DASH_CELLS;
+    maxDashCharges = playerData.upgrades.charges ? 4 : C.MAX_DASH_CHARGES;
+    dashRegenSeconds = playerData.upgrades.regen ? 2.5 : C.DASH_REGEN_SECONDS;
+    if (dashCharges > maxDashCharges) dashCharges = maxDashCharges;
+    updateDashUi();
+  }
 
   function savePlayerData() {
     localStorage.setItem("snake_player_data", JSON.stringify(playerData));
@@ -161,7 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       y = Math.floor(Math.random() * 30) + 1;
       valid = !snakeBody.some(segment => segment[0] === x && segment[1] === y) &&
               !(mainFood.x === x && mainFood.y === y) &&
-              !(obstacleFood.x === x && obstacleFood.y === y) &&
+              !obstacles.some(o => o.x === x && o.y === y) &&
               !extraGoldFoods.some(f => f.x === x && f.y === y);
     }
     return { x, y };
@@ -172,43 +228,60 @@ document.addEventListener("DOMContentLoaded", () => {
     mainFood.x = pos.x;
     mainFood.y = pos.y;
 
-    let rand = Math.random();
-    if (rand < 0.45) mainFood.type = 'normal';
-    else if (rand < 0.65) mainFood.type = 'golden';
-    else if (rand < 0.73) mainFood.type = 'shield';
-    else if (rand < 0.81) mainFood.type = 'dash';
-    else if (rand < 0.87) mainFood.type = 'gold_rain';
-    else if (rand < 0.92) mainFood.type = 'giga';
-    else if (rand < 0.96) mainFood.type = 'magnet';
-    else mainFood.type = 'invulnerable';
+    mainFood.type = C.pickBallType(Math.random());
 
-    if (currentGameMode === "survival" && Math.random() < 0.3) {
-      let oPos = getRandomPosition();
-      obstacleFood = { x: oPos.x, y: oPos.y, active: true };
-    }
   };
 
-  function activateInvulnerability() {
-    isInvulnerable = true;
-    if (invulnerabilityTimer) clearTimeout(invulnerabilityTimer);
+  /* Mode Obstacles : le plateau garde une mémoire. Un mur tous les
+     OBSTACLE_EVERY_POINTS points, jamais dans l'axe proche de la tête et jamais
+     là où il fermerait le plateau (noyau : obstacleFits + bfsReachable). */
+  function addObstacleIfDue() {
+    if (currentGameMode !== "survival") return;
+    if (!C.obstaclesDue(score, obstacles.length)) return;
 
-    // 3 secondes d'invulnérabilité
-    invulnerabilityTimer = setTimeout(() => {
-      isInvulnerable = false;
-    }, 3000);
+    const blocked = new Set();
+    snakeBody.forEach(s => blocked.add(C.cellKey(s[0], s[1])));
+    obstacles.forEach(o => blocked.add(C.cellKey(o.x, o.y)));
+
+    const ctx = {
+      head: { x: snakeX, y: snakeY },
+      dir: { x: moveX, y: moveY },
+      food: { x: mainFood.x, y: mainFood.y },
+      blocked: blocked,
+      minAhead: C.OBSTACLE_MIN_AHEAD,
+    };
+
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const cell = {
+        x: Math.floor(Math.random() * C.GRID_SIZE) + 1,
+        y: Math.floor(Math.random() * C.GRID_SIZE) + 1,
+      };
+      if (C.obstacleFits(cell, ctx)) {
+        obstacles.push(cell);
+        return;
+      }
+    }
+  }
+
+  function activateInvulnerability() {
+    // Durée décomptée par la boucle de jeu : la pause la gèle donc naturellement
+    isInvulnerable = true;
+    invulnMsLeft = INVULNERABLE_DURATION_MS;
   }
 
   function applyFoodEffect(type) {
+    score += C.BALL_SCORES[type] || 0;
+
+    // Aura Giga : chaque boule vaut 2 points de plus tant qu'elle est active
+    if (isGiga) score += C.GIGA_BONUS;
+
     if (type === 'normal') {
-      score += 1;
       playSound('eat');
     } else {
       playSound('powerup');
-      if (type === 'golden') score += 3;
-      else if (type === 'shield') { score += 2; hasShield = true; }
-      else if (type === 'dash') { score += 2; activateAbility(); }
+      if (type === 'shield') hasShield = true;
+      else if (type === 'dash') addDashCharge();
       else if (type === 'gold_rain') {
-        score += 2;
         extraGoldFoods = [];
         for (let i = 0; i < 3; i++) {
           let p = getRandomPosition();
@@ -216,18 +289,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       else if (type === 'giga') {
-        score += 2;
         isGiga = true;
-        setTimeout(() => { isGiga = false; }, 8000);
+        gigaMsLeft = GIGA_DURATION_MS;
       }
-      else if (type === 'magnet') { score += 2; magnetCharges = 3; }
-      else if (type === 'invulnerable') { score += 3; activateInvulnerability(); }
+      else if (type === 'magnet') magnetCharges = MAGNET_CHARGES;
+      else if (type === 'invulnerable') activateInvulnerability();
 
       if (currentGameMode === "chrono") {
         chronoTime += 3;
         timerVal.innerText = chronoTime;
       }
     }
+  }
+
+  // Un seul endroit (re)programme la boucle de jeu, pour garder tickMs synchronisé
+  function setLoopInterval(ms) {
+    clearInterval(intervalId);
+    tickMs = ms;
+    intervalId = setInterval(createGame, ms);
   }
 
   window.togglePause = function() {
@@ -242,17 +321,58 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       modalOverlay.classList.add("hidden");
       pauseBox.classList.add("hidden");
-      let speed = isDashing ? dashSpeed : normalSpeed;
-      intervalId = setInterval(createGame, speed);
+      setLoopInterval(isDashing ? dashSpeed : normalSpeed);
       if (currentGameMode === "chrono") startChronoTimer();
     }
   };
 
   const createGame = () => {
     if (gameEnd || isPaused) return;
+    if (!stepSnake()) return; // partie terminée : endGame a déjà pris la main
+    renderBoard();
+  };
 
-    snakeX += moveX;
-    snakeY += moveY;
+  /* Un tick de jeu : virages, durées des effets, déplacement, collisions,
+     nourriture, score. Renvoie false quand la partie vient de se terminer. */
+  const stepSnake = () => {
+    // Un seul virage est consommé par tick, dans l'ordre des appuis
+    const turn = C.consumeTurn(turnQueue);
+    if (turn.dir) { moveX = turn.dir.x; moveY = turn.dir.y; }
+    turnQueue = turn.queue;
+
+    // Le dash couvre exactement dashCells cases, puis rend la main
+    if (isDashing) {
+      dashCellsLeft--;
+      if (dashCellsLeft <= 0) endDash();
+      else updateDashUi();
+    }
+
+    // Durées des effets actifs, décomptées en temps réel (donc gelées en pause)
+    const effects = C.tickEffects({ giga: gigaMsLeft, invuln: invulnMsLeft }, tickMs);
+    gigaMsLeft = effects.budgets.giga;
+    invulnMsLeft = effects.budgets.invuln;
+    effects.expired.forEach(key => {
+      if (key === "giga") isGiga = false;
+      else isInvulnerable = false;
+    });
+
+    // Mode Obstacles : un mur ne se traverse pas. On cogne, on ne bouge pas de ce
+    // tick, on perd un choc — et le bloc reste (le plateau garde sa mémoire).
+    const nextX = snakeX + moveX;
+    const nextY = snakeY + moveY;
+    if (!isInvulnerable && obstacles.some(o => o.x === nextX && o.y === nextY)) {
+      obstacleCollisions++;
+      updateEffectsUi();
+      if (obstacleCollisions >= MAX_OBSTACLE_COLLISIONS) {
+        gameEnd = true;
+        endGame();
+        return false;
+      }
+      return true;
+    }
+
+    snakeX = nextX;
+    snakeY = nextY;
 
     // Traversée des murs si invulnérable
     if (isInvulnerable) {
@@ -261,9 +381,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (snakeY <= 0) snakeY = 30;
       else if (snakeY > 30) snakeY = 1;
     }
-
-    lastMoveX = moveX;
-    lastMoveY = moveY;
 
     if (magnetCharges > 0) {
       mainFood.x = snakeX;
@@ -285,7 +402,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         gameEnd = true;
-        return endGame();
+        endGame();
+        return false;
       }
     }
 
@@ -296,20 +414,10 @@ document.addEventListener("DOMContentLoaded", () => {
       ateFood = true;
     }
 
-    if (obstacleFood.active && snakeX === obstacleFood.x && snakeY === obstacleFood.y) {
-      obstacleFood.active = false;
-      if (!isInvulnerable) {
-        obstacleCollisions++;
-        if (obstacleCollisions >= 3) {
-          gameEnd = true;
-          return endGame();
-        }
-      }
-    }
-
     for (let i = extraGoldFoods.length - 1; i >= 0; i--) {
       if (snakeX === extraGoldFoods[i].x && snakeY === extraGoldFoods[i].y) {
-        score += 3;
+        score += C.EXTRA_GOLD_SCORE;
+        if (isGiga) score += C.GIGA_BONUS;
         playSound('eat');
         extraGoldFoods.splice(i, 1);
         ateFood = true;
@@ -319,20 +427,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ateFood) {
       scoreVal.innerText = score;
       snakeBody.push([snakeX, snakeY]);
+      addObstacleIfDue();
 
       if (normalSpeed > minSpeed) {
-        normalSpeed -= 2;
-        if (normalSpeed < minSpeed) normalSpeed = minSpeed;
-        if (!isDashing && !isPaused) {
-          clearInterval(intervalId);
-          intervalId = setInterval(createGame, normalSpeed);
-        }
+        normalSpeed = C.nextSpeed(normalSpeed, minSpeed, speedStep);
+        if (!isDashing && !isPaused) setLoopInterval(normalSpeed);
       }
     } else {
       snakeBody.unshift([snakeX, snakeY]);
       snakeBody.pop();
     }
 
+    return true;
+  };
+
+  // Rendu du plateau : uniquement de l'affichage, aucune décision de jeu
+  const renderBoard = () => {
     let html = "";
     let foodClasses = {
       normal: "food-normal", golden: "food-golden", shield: "food-shield",
@@ -342,9 +452,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     html += `<div class="${foodClasses[mainFood.type]}" style="grid-area: ${mainFood.y} / ${mainFood.x}"></div>`;
 
-    if (obstacleFood.active) {
-      html += `<div class="obstacle-block" style="grid-area: ${obstacleFood.y} / ${obstacleFood.x}"></div>`;
-    }
+    obstacles.forEach(o => {
+      html += `<div class="obstacle-block" style="grid-area: ${o.y} / ${o.x}"></div>`;
+    });
 
     extraGoldFoods.forEach(f => {
       html += `<div class="food-golden" style="grid-area: ${f.y} / ${f.x}"></div>`;
@@ -364,16 +474,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     playBoard.innerHTML = html;
+    updateEffectsUi();
+    speedFill.style.width = Math.round(C.speedRatio(normalSpeed, initialSpeed, minSpeed) * 100) + "%";
+    speedValue.innerText = C.casesPerSecond(tickMs) + " cases/s";
   };
 
   window.changeDirection = function(dir) {
     initAudio();
-    if (isPaused) return;
-
-    if (dir === "Left" && lastMoveX !== 1) { moveX = -1; moveY = 0; }
-    else if (dir === "Up" && lastMoveY !== 1) { moveX = 0; moveY = -1; }
-    else if (dir === "Right" && lastMoveX !== -1) { moveX = 1; moveY = 0; }
-    else if (dir === "Down" && lastMoveY !== -1) { moveX = 0; moveY = 1; }
+    if (isPaused || gameEnd) return;
+    // Règle des virages (demi-tour refusé, file de 2) : décidée par le noyau, testée
+    turnQueue = C.enqueueTurn(turnQueue, { x: moveX, y: moveY }, dir, C.TURN_QUEUE_MAX);
   };
 
   document.addEventListener("keydown", (e) => {
@@ -385,51 +495,128 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (e.key === "ArrowDown") changeDirection("Down");
   });
 
+  // Affiche l'état du dash : temps restant, charges disponibles ou temps de recharge
+  function updateDashUi() {
+    const remainingSeconds = ((Math.max(0, dashCellsLeft) * dashSpeed) / 1000).toFixed(1).replace(".", ",");
+
+    const regenTotal = dashRegenSeconds * 1000;
+
+    if (isDashing) {
+      abilityText.innerHTML = `<i class="fa-solid fa-bolt"></i> ${remainingSeconds} s`;
+    } else if (dashCharges > 0) {
+      abilityText.innerHTML = `<i class="fa-solid fa-bolt"></i> Dash ${dashCharges}/${maxDashCharges}`;
+    } else {
+      abilityText.innerHTML = `<i class="fa-solid fa-bolt"></i> ${Math.ceil((regenTotal - regenMs) / 1000)}s`;
+    }
+
+    abilityBtn.classList.toggle("cooldown", !isDashing && dashCharges === 0);
+
+    const regenPercent = (isDashing || dashCharges >= maxDashCharges)
+      ? 0
+      : (regenMs / regenTotal) * 100;
+    cooldownOverlay.style.width = regenPercent + "%";
+  }
+
+  function addDashCharge() {
+    // La bille bleue recharge complètement le dash, sans le déclencher
+    dashCharges = maxDashCharges;
+    regenMs = 0;
+    updateDashUi();
+  }
+
+  const secondsFr = ms => (ms / 1000).toFixed(1).replace(".", ",");
+
+  // Un bandeau par effet actif : barre qui se vide pour les durées, compteur sinon
+  function effectChip(label, ratio, valueText, kind) {
+    const track = ratio === null
+      ? ""
+      : `<span class="effect-track"><span class="effect-fill" style="width:${Math.max(0, Math.min(1, ratio)) * 100}%"></span></span>`;
+    return `<span class="effect-chip effect-${kind}"><span class="effect-label">${label}</span>${track}<span class="effect-value">${valueText}</span></span>`;
+  }
+
+  function updateEffectsUi() {
+    const chips = [];
+    if (isGiga) chips.push(effectChip("Giga", gigaMsLeft / GIGA_DURATION_MS, secondsFr(gigaMsLeft) + "s", "giga"));
+    if (isInvulnerable) chips.push(effectChip("Invincible", invulnMsLeft / INVULNERABLE_DURATION_MS, secondsFr(invulnMsLeft) + "s", "invuln"));
+    if (hasShield) chips.push(effectChip("Bouclier", null, "1 choc", "shield"));
+    if (magnetCharges > 0) chips.push(effectChip("Aimant", magnetCharges / MAGNET_CHARGES, "×" + magnetCharges, "magnet"));
+    if (currentGameMode === "survival") {
+      // Chocs restants avant la fin de partie (murs franchis = murs perdus)
+      const lives = Math.max(0, MAX_OBSTACLE_COLLISIONS - obstacleCollisions);
+      chips.push(effectChip("Chocs", lives / MAX_OBSTACLE_COLLISIONS, lives + "/" + MAX_OBSTACLE_COLLISIONS, "wall"));
+    }
+    effectsBar.innerHTML = chips.join("");
+    effectsBar.classList.toggle("hidden", chips.length === 0);
+  }
+
+  function endDash() {
+    if (!isDashing) return;
+
+    isDashing = false;
+    dashCellsLeft = 0;
+    abilityBtn.classList.remove("active");
+
+    if (!isPaused && !gameEnd) setLoopInterval(normalSpeed);
+
+    updateDashUi();
+  }
+
   window.activateAbility = function() {
     initAudio();
-    if (abilityCooldown || gameEnd || isPaused || !modalOverlay.classList.contains("hidden")) return;
+    if (gameEnd || isPaused || isDashing || dashCharges <= 0) return;
+    if (!modalOverlay.classList.contains("hidden")) return;
 
+    dashCharges--;
+    regenMs = 0;
     playSound('dash');
-    abilityCooldown = true;
+
+    // Vitesse relative : le dash garde la même lisibilité du début à la fin de la partie
+    dashSpeed = C.dashSpeedFor(normalSpeed);
+    dashCellsLeft = dashCells;
     isDashing = true;
 
     abilityBtn.classList.add("active");
-    abilityText.innerHTML = `<i class="fa-solid fa-bolt"></i> DASH !`;
+    updateDashUi();
 
-    clearInterval(intervalId);
-    intervalId = setInterval(createGame, dashSpeed);
-
-    setTimeout(() => {
-      isDashing = false;
-      abilityBtn.classList.remove("active");
-      abilityBtn.classList.add("cooldown");
-
-      if (!isPaused && !gameEnd) {
-        clearInterval(intervalId);
-        intervalId = setInterval(createGame, normalSpeed);
-      }
-
-      let cooldownTime = 3000;
-      let startCld = Date.now();
-
-      let cooldownInterval = setInterval(() => {
-        let elapsed = Date.now() - startCld;
-        let remainingPercent = Math.max(0, 100 - (elapsed / cooldownTime) * 100);
-        cooldownOverlay.style.width = remainingPercent + "%";
-
-        let remainingSeconds = ((cooldownTime - elapsed) / 1000).toFixed(1);
-        if (remainingSeconds > 0) abilityText.innerText = `${remainingSeconds}s`;
-
-        if (elapsed >= cooldownTime) {
-          clearInterval(cooldownInterval);
-          abilityCooldown = false;
-          abilityBtn.classList.remove("cooldown");
-          cooldownOverlay.style.width = "0%";
-          abilityText.innerHTML = `<i class="fa-solid fa-bolt"></i> Dash`;
-        }
-      }, 50);
-    }, 1500);
+    setLoopInterval(dashSpeed);
   };
+
+  /* Un seul endroit connaît l'état d'une partie : ajouter une mécanique ne peut
+     plus laisser un reliquat derrière soi (c'est ce qui faisait survivre le dash
+     à une pause et les effets au game over). */
+  function clearActiveEffects() {
+    isDashing = false;
+    dashCellsLeft = 0;
+    abilityBtn.classList.remove("active");
+    isInvulnerable = false;
+    invulnMsLeft = 0;
+    isGiga = false;
+    gigaMsLeft = 0;
+    hasShield = false;
+    magnetCharges = 0;
+    updateEffectsUi();
+  }
+
+  function resetRunState() {
+    clearActiveEffects();
+
+    gameEnd = false;
+    isPaused = false;
+    obstacleCollisions = 0;
+    obstacles = [];
+    extraGoldFoods = [];
+
+    normalSpeed = initialSpeed;
+    dashSpeed = C.DASH_MAX_SPEED;
+    dashCharges = 1;
+    regenMs = 0;
+    turnQueue = [];
+    intervalId = null;
+    score = 0;
+    snakeX = 5; snakeY = 10;
+    moveX = 1; moveY = 0;
+    snakeBody = [[snakeX, snakeY]];
+  }
 
   function startChronoTimer() {
     if (chronoInterval) clearInterval(chronoInterval);
@@ -450,22 +637,28 @@ document.addEventListener("DOMContentLoaded", () => {
     playSound('gameover');
     clearInterval(intervalId);
     if (chronoInterval) clearInterval(chronoInterval);
-    if (invulnerabilityTimer) clearTimeout(invulnerabilityTimer);
 
     intervalId = null;
-    isDashing = false;
-    isInvulnerable = false;
+    clearActiveEffects();
 
-    let durationSeconds = Math.max(1, Math.floor((Date.now() - startTime) / 1000));
-    let coinsEarned = Math.floor(score * 10 + (score / durationSeconds) * 20);
+    const durationSeconds = Math.max(1, Math.floor((Date.now() - startTime) / 1000));
+    const coins = C.coinsFor(score, durationSeconds);
+    const isNewRecord = score > playerData.highScore;
 
-    playerData.coins += coinsEarned;
-    if (score > playerData.highScore) playerData.highScore = score;
+    playerData.coins += coins.total;
+    if (isNewRecord) playerData.highScore = score;
 
     savePlayerData();
 
+    // Fin de partie lisible : le score, le record, et d'où viennent les pièces
     gameOverScore.innerText = score;
-    earnedCoins.innerText = coinsEarned;
+    earnedCoins.innerText = coins.total;
+    if (recordVal) recordVal.innerText = playerData.highScore;
+    if (newRecordTag) newRecordTag.classList.toggle("hidden", !isNewRecord);
+    if (bdScore) bdScore.innerText = score;
+    if (bdFlat) bdFlat.innerText = coins.flat;
+    if (bdDensity) bdDensity.innerText = (score / coins.seconds).toFixed(2).replace(".", ",");
+    if (bdDensityCoins) bdDensityCoins.innerText = coins.density;
 
     startBox.classList.add("hidden");
     countdownBox.classList.add("hidden");
@@ -499,27 +692,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let count = 5;
     countdownText.innerText = count;
 
-    if (invulnerabilityTimer) clearTimeout(invulnerabilityTimer);
-
-    gameEnd = false;
-    isPaused = false;
-    isDashing = false;
-    hasShield = false;
-    isGiga = false;
-    isInvulnerable = false;
-    obstacleCollisions = 0;
-    obstacleFood.active = false;
-    magnetCharges = 0;
-    extraGoldFoods = [];
-
-    normalSpeed = initialSpeed;
-    score = 0;
-    snakeX = 5; snakeY = 10;
-    moveX = 1; moveY = 0; lastMoveX = 1; lastMoveY = 0;
-
-    snakeBody = [[snakeX, snakeY]];
+    resetRunState();
     scoreVal.innerText = score;
     changeFoodPosition();
+    updateDashUi();
+    updateEffectsUi();
 
     let countdownTimer = setInterval(() => {
       count--;
@@ -531,12 +708,32 @@ document.addEventListener("DOMContentLoaded", () => {
         countdownBox.classList.add("hidden");
 
         startTime = Date.now();
-        clearInterval(intervalId);
-        intervalId = setInterval(createGame, normalSpeed);
+        setLoopInterval(normalSpeed);
 
         if (currentGameMode === "chrono") startChronoTimer();
       }
     }, 1000);
+  };
+
+  function renderUpgradeShop() {
+    if (!upgradeItems) return;
+    upgradeItems.innerHTML = UPGRADES.map(u => {
+      const owned = !!playerData.upgrades[u.key];
+      return `<button class="skin-btn upgrade-btn"${owned ? " disabled" : ""} onclick="buyUpgrade('${u.key}')">` +
+        `${u.label}<br><span class="upgrade-cost">${owned ? "Acquise" : u.cost + " pièces"}</span></button>`;
+    }).join("");
+  }
+
+  window.buyUpgrade = function(key) {
+    const upgrade = UPGRADES.find(u => u.key === key);
+    if (!upgrade || playerData.upgrades[key]) return;
+    if (playerData.coins < upgrade.cost) { alert("Pas assez de pièces !"); return; }
+
+    playerData.coins -= upgrade.cost;
+    playerData.upgrades[key] = true;
+    applyUpgrades();
+    savePlayerData();
+    renderUpgradeShop();
   };
 
   window.buyOrEquipSkin = function(skinName, cost) {
@@ -559,6 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
   shopToggleBtns.forEach(btn => btn.addEventListener("click", () => {
     startBox.classList.add("hidden");
     gameOverBox.classList.add("hidden");
+    renderUpgradeShop();
     shopBox.classList.remove("hidden");
     modalOverlay.classList.remove("hidden");
   }));
@@ -579,5 +777,25 @@ document.addEventListener("DOMContentLoaded", () => {
     startBox.classList.remove("hidden");
   });
 
+  // Recharge automatique d'une charge de dash (durée issue des améliorations),
+  // gelée en pause, pendant le compte à rebours et après un game over.
+  setInterval(() => {
+    if (gameEnd || isPaused || intervalId === null) return;
+    if (dashCharges >= maxDashCharges) {
+      regenMs = 0;
+      updateDashUi();
+      return;
+    }
+    regenMs += 250;
+    if (regenMs >= dashRegenSeconds * 1000) {
+      regenMs = 0;
+      dashCharges++;
+    }
+    updateDashUi();
+  }, 250);
+
+  applyUpgrades();
+  renderUpgradeShop();
+  updateDashUi();
   updateUI();
 });
